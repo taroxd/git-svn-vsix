@@ -1,0 +1,76 @@
+{
+  "name": "git-svn-vsix",
+  "displayName": "Git SVN Buttons",
+  "description": "Adds git-svn Source Control buttons to VS Code's built-in Git extension.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && node --test out/test/*.test.js",
+    "vscode-test": "npm run compile && node ./out/test/runVscodeTests.js",
+    "package": "npm run compile && vsce package --no-dependencies --allow-missing-repository"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitSvn.publishToSvn",
+        "title": "Publish To SVN",
+        "category": "Git SVN",
+        "icon": "$(repo-push)"
+      },
+      {
+        "command": "gitSvn.rebase",
+        "title": "git svn rebase",
+        "category": "Git SVN",
+        "icon": "$(repo-pull)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "gitSvn.publishToSvn",
+          "when": "gitSvn.isSelectedRepository"
+        },
+        {
+          "command": "gitSvn.rebase",
+          "when": "gitSvn.isSelectedRepository"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "gitSvn.rebase",
+          "group": "navigation@2",
+          "when": "scmProvider == git && gitSvn.isSelectedRepository"
+        },
+        {
+          "command": "gitSvn.publishToSvn",
+          "group": "navigation@3",
+          "when": "scmProvider == git && gitSvn.isSelectedRepository"
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.6.3",
+    "typescript": "^5.8.3"
+  }
+}
