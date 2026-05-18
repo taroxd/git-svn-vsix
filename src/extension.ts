@@ -1,11 +1,15 @@
 import * as vscode from 'vscode';
+import { GitSvnAskpass } from './askpass';
+import type { AskpassEnvironment, GitSvnCredentials } from './askpass';
 import { GIT_SVN_CONTEXT_KEY, isGitSvnRepository } from './gitSvn';
+import { ProcessCommandError, ProcessCommandRunner } from './processRunner';
+import type { GitSvnCommand, ProcessExecutionResult } from './processRunner';
 import { resolveRepository } from './repositoryResolver';
-import { TerminalCommandRunner } from './terminalRunner';
+import type { GitRepositoryLike } from './repositoryResolver';
 import type { GitApi, GitExtension, GitRepository } from './vscodeGit';
 
-const PUBLISH_COMMAND = 'git svn dcommit';
-const REBASE_COMMAND = 'git svn rebase';
+const PUBLISH_COMMAND: GitSvnCommand = { args: ['svn', 'dcommit'], label: 'git svn dcommit' };
+const REBASE_COMMAND: GitSvnCommand = { args: ['svn', 'rebase'], label: 'git svn rebase' };
 
 let controller: GitSvnController | undefined;
 
@@ -23,26 +27,34 @@ class GitSvnController implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly apiDisposables: vscode.Disposable[] = [];
   private readonly repositoryDisposables = new Map<string, vscode.Disposable[]>();
-  private readonly terminalRunner = new TerminalCommandRunner({
-    createTerminal: options => vscode.window.createTerminal(options),
-    getTerminals: () => vscode.window.terminals
+  private readonly logger = vscode.window.createOutputChannel('Git SVN', { log: true });
+  private readonly askpass: GitSvnAskpass;
+  private readonly commandRunner = new ProcessCommandRunner({
+    logger: this.logger,
+    getGitPath: () => this.api?.git.path
   });
 
   private api: GitApi | undefined;
   private contextUpdateGeneration = 0;
 
-  public constructor(private readonly context: vscode.ExtensionContext) {}
+  public constructor(private readonly context: vscode.ExtensionContext) {
+    this.askpass = new GitSvnAskpass(context.globalStorageUri, context.extensionUri);
+  }
 
   public async activate(): Promise<void> {
     await this.setGitSvnContext(false);
 
-    this.context.subscriptions.push(
+    this.disposables.push(
+      this.logger,
       vscode.commands.registerCommand('gitSvn.publishToSvn', (...args: unknown[]) =>
         this.runGitSvnCommand(PUBLISH_COMMAND, args)
       ),
       vscode.commands.registerCommand('gitSvn.rebase', (...args: unknown[]) =>
         this.runGitSvnCommand(REBASE_COMMAND, args)
       ),
+      vscode.commands.registerCommand('gitSvn.showOutput', () => {
+        this.logger.show();
+      }),
       vscode.window.onDidChangeActiveTextEditor(() => {
         void this.updateContext();
       })
@@ -163,7 +175,7 @@ class GitSvnController implements vscode.Disposable {
     }
   }
 
-  private async runGitSvnCommand(command: string, args: readonly unknown[]): Promise<void> {
+  private async runGitSvnCommand(command: GitSvnCommand, args: readonly unknown[]): Promise<void> {
     const api = this.api;
 
     if (!api) {
@@ -183,7 +195,116 @@ class GitSvnController implements vscode.Disposable {
       return;
     }
 
-    this.terminalRunner.run(repository, command);
+    const credentialKey = getCredentialKey(repository as GitRepository);
+    let credentials = await this.loadCredentials(credentialKey);
+    let lastError: unknown;
+    let authPromptCount = 0;
+
+    while (true) {
+      try {
+        await this.runGitSvnCommandAttempt(repository, command, credentials);
+
+        if (credentials) {
+          await this.saveCredentials(credentialKey, credentials);
+        }
+
+        return;
+      } catch (error) {
+        lastError = error;
+
+        if (!isAuthenticationError(error)) {
+          break;
+        }
+
+        if (authPromptCount >= 2) {
+          break;
+        }
+
+        credentials = await this.promptCredentials(credentials);
+        authPromptCount++;
+
+        if (!credentials) {
+          break;
+        }
+      }
+    }
+
+    await this.showCommandError(lastError, command);
+  }
+
+  private async runGitSvnCommandAttempt(
+    repository: GitRepositoryLike,
+    command: GitSvnCommand,
+    credentials: GitSvnCredentials | undefined
+  ): Promise<void> {
+    let askpassEnvironment: AskpassEnvironment | undefined;
+
+    try {
+      if (credentials) {
+        askpassEnvironment = await this.askpass.createEnvironment(credentials);
+      }
+
+      await this.commandRunner.run(repository, withUsername(command, credentials?.username), {
+        env: askpassEnvironment?.env
+      });
+    } finally {
+      await askpassEnvironment?.dispose();
+    }
+  }
+
+  private async loadCredentials(key: string): Promise<GitSvnCredentials | undefined> {
+    const value = await this.context.secrets.get(key);
+
+    if (!value) {
+      return undefined;
+    }
+
+    try {
+      const parsed = JSON.parse(value) as GitSvnCredentials;
+      return typeof parsed.username === 'string' && typeof parsed.password === 'string' ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async saveCredentials(key: string, credentials: GitSvnCredentials): Promise<void> {
+    await this.context.secrets.store(key, JSON.stringify(credentials));
+  }
+
+  private async promptCredentials(previous: GitSvnCredentials | undefined): Promise<GitSvnCredentials | undefined> {
+    const username = await vscode.window.showInputBox({
+      ignoreFocusOut: true,
+      placeHolder: 'SVN repository username',
+      prompt: 'Please enter your username',
+      value: previous?.username
+    });
+
+    if (username === undefined) {
+      return undefined;
+    }
+
+    const password = await vscode.window.showInputBox({
+      ignoreFocusOut: true,
+      password: true,
+      placeHolder: 'SVN repository password',
+      prompt: 'Please enter your password'
+    });
+
+    if (password === undefined) {
+      return undefined;
+    }
+
+    return { username, password };
+  }
+
+  private async showCommandError(error: unknown, command: GitSvnCommand): Promise<void> {
+    const message = getCommandErrorMessage(error, command);
+    const openLog = 'Open Git SVN Log';
+    const result = await vscode.window.showErrorMessage(message, openLog);
+
+    if (result === openLog) {
+      this.logger.show();
+    }
   }
 
   private async setGitSvnContext(value: boolean): Promise<void> {
@@ -193,4 +314,53 @@ class GitSvnController implements vscode.Disposable {
 
 function repositoryKey(repository: GitRepository): string {
   return repository.rootUri.toString();
+}
+
+function getCredentialKey(repository: GitRepository): string {
+  return `git-svn-vsix:${repository.rootUri.toString()}`;
+}
+
+function withUsername(command: GitSvnCommand, username: string | undefined): GitSvnCommand {
+  if (!username || command.args.includes('--username')) {
+    return command;
+  }
+
+  return {
+    args: [...command.args, '--username', username],
+    label: command.label
+  };
+}
+
+function isAuthenticationError(error: unknown): boolean {
+  if (!(error instanceof ProcessCommandError)) {
+    return false;
+  }
+
+  const output = `${error.result?.stderr ?? ''}\n${error.result?.stdout ?? ''}`;
+  return /E170001|authentication failed|authorization failed|no more credentials|password for|username:/i.test(output);
+}
+
+function getCommandErrorMessage(error: unknown, command: GitSvnCommand): string {
+  if (error instanceof ProcessCommandError) {
+    const hint = getCommandErrorHint(error.result);
+    return hint ? `Git SVN: ${hint}` : `Git SVN: ${error.message}`;
+  }
+
+  if (error instanceof Error) {
+    return `Git SVN: ${error.message}`;
+  }
+
+  return `Git SVN: ${command.label} failed.`;
+}
+
+function getCommandErrorHint(result: ProcessExecutionResult | undefined): string | undefined {
+  return getLastMeaningfulLine(result?.stderr) ?? getLastMeaningfulLine(result?.stdout);
+}
+
+function getLastMeaningfulLine(output: string | undefined): string | undefined {
+  return output
+    ?.split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .at(-1);
 }

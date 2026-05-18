@@ -15,6 +15,9 @@ export interface GitRepository extends GitRepositoryLike {
 }
 
 export interface GitApi extends GitApiLike {
+  readonly git: {
+    readonly path: string;
+  };
   readonly repositories: readonly GitRepository[];
   readonly onDidOpenRepository: Event<GitRepository>;
   readonly onDidCloseRepository: Event<GitRepository>;

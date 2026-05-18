@@ -20,6 +20,13 @@ describe('extension manifest', () => {
     assert.strictEqual(command.icon, '$(repo-pull)');
   });
 
+  it('contributes the Show Output command', () => {
+    const command = findCommand(manifest, 'gitSvn.showOutput');
+
+    assert.strictEqual(command.title, 'Show Output');
+    assert.strictEqual(command.icon, '$(output)');
+  });
+
   it('adds both commands to the Source Control title menu with git-svn gating', () => {
     const sourceControlTitleMenu = manifest.contributes.menus['scm/title'];
     const publish = findMenuItem(sourceControlTitleMenu, 'gitSvn.publishToSvn');

@@ -2,7 +2,7 @@
   "name": "git-svn-vsix",
   "displayName": "Git SVN Buttons",
   "description": "Adds git-svn Source Control buttons to VS Code's built-in Git extension.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "taroxd",
   "license": "MIT",
   "repository": {
@@ -36,7 +36,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test": "npm run compile && node --test out/test/*.test.js",
+    "test": "npm run compile && node ./out/test/runUnitTests.js",
     "vscode-test": "npm run compile && node ./out/test/runVscodeTests.js",
     "package": "npm run compile && vsce package"
   },
@@ -53,6 +53,12 @@
         "title": "git svn rebase",
         "category": "Git SVN",
         "icon": "$(repo-pull)"
+      },
+      {
+        "command": "gitSvn.showOutput",
+        "title": "Show Output",
+        "category": "Git SVN",
+        "icon": "$(output)"
       }
     ],
     "menus": {
@@ -64,6 +70,9 @@
         {
           "command": "gitSvn.rebase",
           "when": "gitSvn.isSelectedRepository"
+        },
+        {
+          "command": "gitSvn.showOutput"
         }
       ],
       "scm/title": [

@@ -50,5 +50,5 @@ npm run package
 
 - Use only stable VS Code APIs. Do not monkey patch the built-in Git extension or depend on proposed/internal APIs to replace the built-in `Publish Branch` action button.
 - Keep git-svn detection conservative: a repository is treated as git-svn when local Git config contains a key starting with `svn-remote.`.
-- Commands should execute in a VS Code terminal with the repository root as `cwd`, so interactive git-svn authentication and prompts work naturally.
-- Keep behavior-level tests for command selection, git-svn detection, terminal command dispatch, and manifest contributions.
+- Commands should execute through a Git child process with the repository root as `cwd`, and should write command/output details to the Git SVN log output channel instead of opening a VS Code terminal.
+- Keep behavior-level tests for command selection, git-svn detection, process command dispatch, output logging, and manifest contributions.

@@ -2,6 +2,7 @@
 .vscode-test/**
 src/**
 node_modules/**
+*.vsix
 out/**/*.map
 out/test/**
 tsconfig.json
