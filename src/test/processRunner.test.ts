@@ -83,6 +83,25 @@ describe('process command runner', () => {
     assert.match(logger.value, /^> git svn rebase \[\d+ms\]\nUnable to rebase\n$/);
   });
 
+  it('can suppress output for failed authentication probes', async () => {
+    const process = new RecordingProcess();
+    const logger = new RecordingLogger();
+    const runner = new ProcessCommandRunner({
+      logger,
+      processFactory: new RecordingProcessFactory(process)
+    });
+
+    const promise = runner.run({ rootUri: { fsPath: '/workspace/project' } }, REBASE, {
+      logFailureOutput: false
+    });
+    process.stderr.emit('data', Buffer.from('Authentication failed\n'));
+    process.closeStreams();
+    process.exit(1);
+
+    await assert.rejects(promise, ProcessCommandError);
+    assert.strictEqual(logger.value, '');
+  });
+
   it('falls back to git from PATH when the Git extension path is unavailable', async () => {
     const process = new RecordingProcess();
     const factory = new RecordingProcessFactory(process);
@@ -155,10 +174,6 @@ class RecordingProcess extends EventEmitter implements ProcessLike {
 
 class RecordingLogger implements ProcessLogger {
   public value = '';
-
-  public append(value: string): void {
-    this.value += value;
-  }
 
   public appendLine(value: string): void {
     this.value += `${value}\n`;

@@ -8,7 +8,6 @@ export interface GitSvnCommand {
 }
 
 export interface ProcessLogger {
-  append(value: string): void;
   appendLine(value: string): void;
 }
 
@@ -31,6 +30,7 @@ export interface ProcessCommandRunnerOptions {
 
 export interface ProcessCommandRunOptions {
   readonly env?: NodeJS.ProcessEnv;
+  readonly logFailureOutput?: boolean;
 }
 
 export interface ProcessExecutionResult {
@@ -95,6 +95,21 @@ export class ProcessCommandRunner {
     }
 
     const elapsed = Date.now() - startedAt;
+
+    if (result.exitCode !== 0) {
+      if (runOptions.logFailureOutput !== false) {
+        this.appendResult(command, elapsed, result);
+      }
+
+      const reason =
+        result.exitCode === null ? 'was terminated before it completed' : `exited with code ${result.exitCode}`;
+      throw new ProcessCommandError(`${command.label} ${reason}.`, command, result);
+    }
+
+    this.appendResult(command, elapsed, result);
+  }
+
+  private appendResult(command: GitSvnCommand, elapsed: number, result: ProcessExecutionResult): void {
     this.appendLogBlock(`> ${command.label} [${elapsed}ms]\n`);
 
     if (result.stdout.length > 0) {
@@ -103,12 +118,6 @@ export class ProcessCommandRunner {
 
     if (result.stderr.length > 0) {
       this.appendLogBlock(`${result.stderr}\n`);
-    }
-
-    if (result.exitCode !== 0) {
-      const reason =
-        result.exitCode === null ? 'was terminated before it completed' : `exited with code ${result.exitCode}`;
-      throw new ProcessCommandError(`${command.label} ${reason}.`, command, result);
     }
   }
 

@@ -3,7 +3,7 @@ import { GitSvnAskpass } from './askpass';
 import type { AskpassEnvironment, GitSvnCredentials } from './askpass';
 import { GIT_SVN_CONTEXT_KEY, isGitSvnRepository } from './gitSvn';
 import { ProcessCommandError, ProcessCommandRunner } from './processRunner';
-import type { GitSvnCommand, ProcessExecutionResult } from './processRunner';
+import type { GitSvnCommand, ProcessCommandRunOptions, ProcessExecutionResult } from './processRunner';
 import { resolveRepository } from './repositoryResolver';
 import type { GitRepositoryLike } from './repositoryResolver';
 import type { GitApi, GitExtension, GitRepository } from './vscodeGit';
@@ -195,19 +195,15 @@ class GitSvnController implements vscode.Disposable {
       return;
     }
 
-    const credentialKey = getCredentialKey(repository as GitRepository);
-    let credentials = await this.loadCredentials(credentialKey);
+    let credentials: GitSvnCredentials | undefined;
     let lastError: unknown;
     let authPromptCount = 0;
 
     while (true) {
       try {
-        await this.runGitSvnCommandAttempt(repository, command, credentials);
-
-        if (credentials) {
-          await this.saveCredentials(credentialKey, credentials);
-        }
-
+        await this.runGitSvnCommandAttempt(repository, command, credentials, {
+          logFailureOutput: credentials !== undefined
+        });
         return;
       } catch (error) {
         lastError = error;
@@ -235,7 +231,8 @@ class GitSvnController implements vscode.Disposable {
   private async runGitSvnCommandAttempt(
     repository: GitRepositoryLike,
     command: GitSvnCommand,
-    credentials: GitSvnCredentials | undefined
+    credentials: GitSvnCredentials | undefined,
+    runOptions: Pick<ProcessCommandRunOptions, 'logFailureOutput'> = {}
   ): Promise<void> {
     let askpassEnvironment: AskpassEnvironment | undefined;
 
@@ -245,30 +242,12 @@ class GitSvnController implements vscode.Disposable {
       }
 
       await this.commandRunner.run(repository, withUsername(command, credentials?.username), {
-        env: askpassEnvironment?.env
+        env: askpassEnvironment?.env,
+        ...runOptions
       });
     } finally {
       await askpassEnvironment?.dispose();
     }
-  }
-
-  private async loadCredentials(key: string): Promise<GitSvnCredentials | undefined> {
-    const value = await this.context.secrets.get(key);
-
-    if (!value) {
-      return undefined;
-    }
-
-    try {
-      const parsed = JSON.parse(value) as GitSvnCredentials;
-      return typeof parsed.username === 'string' && typeof parsed.password === 'string' ? parsed : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
-  private async saveCredentials(key: string, credentials: GitSvnCredentials): Promise<void> {
-    await this.context.secrets.store(key, JSON.stringify(credentials));
   }
 
   private async promptCredentials(previous: GitSvnCredentials | undefined): Promise<GitSvnCredentials | undefined> {
@@ -314,10 +293,6 @@ class GitSvnController implements vscode.Disposable {
 
 function repositoryKey(repository: GitRepository): string {
   return repository.rootUri.toString();
-}
-
-function getCredentialKey(repository: GitRepository): string {
-  return `git-svn-vsix:${repository.rootUri.toString()}`;
 }
 
 function withUsername(command: GitSvnCommand, username: string | undefined): GitSvnCommand {
