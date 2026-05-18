@@ -12,3 +12,5 @@ Buttons are shown only when the selected Git repository is detected as a git-svn
 ## Usage
 
 Open a git-svn repository in VS Code and use the added buttons in the Source Control view title area.
+
+Source code available at [GitHub](https://github.com/taroxd/git-svn-vsix).
