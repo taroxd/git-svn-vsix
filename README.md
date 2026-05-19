@@ -4,8 +4,8 @@ Git SVN Buttons adds Source Control title buttons for repositories managed with 
 
 ## Features
 
-- `Publish To SVN`: runs `git svn dcommit`
-- `git svn rebase`: runs `git svn rebase`
+- `Publish To SVN (git svn dcommit)`: runs `git svn dcommit`
+- `Retrieve Changes & Rebase (git svn rebase)`: runs `git svn rebase`
 
 Buttons are shown only when the selected Git repository is detected as a git-svn repository. Detection is based on local Git config keys that start with `svn-remote.`.
 

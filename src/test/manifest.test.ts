@@ -9,14 +9,14 @@ describe('extension manifest', () => {
   it('contributes the Publish To SVN command with repo-push icon', () => {
     const command = findCommand(manifest, 'gitSvn.publishToSvn');
 
-    assert.strictEqual(command.title, 'Publish To SVN');
+    assert.strictEqual(command.title, 'Publish To SVN (git svn dcommit)');
     assert.strictEqual(command.icon, '$(repo-push)');
   });
 
   it('contributes the git svn rebase command with repo-pull icon', () => {
     const command = findCommand(manifest, 'gitSvn.rebase');
 
-    assert.strictEqual(command.title, 'git svn rebase');
+    assert.strictEqual(command.title, 'Retrieve Changes & Rebase (git svn rebase)');
     assert.strictEqual(command.icon, '$(repo-pull)');
   });
 
