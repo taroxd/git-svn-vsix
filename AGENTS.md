@@ -52,11 +52,3 @@ npm version patch   # e.g. 0.0.4 → 0.0.5
 npm version minor   # e.g. 0.0.4 → 0.1.0
 npm version major   # e.g. 0.0.4 → 1.0.0
 ```
-
-Publish to VS Code Marketplace (bumps version, publishes, creates git commit and tag):
-
-```bash
-vsce publish patch
-vsce publish minor
-vsce publish major
-```
