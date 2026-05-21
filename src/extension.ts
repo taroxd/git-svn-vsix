@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { GitSvnAskpass } from './askpass';
 import type { AskpassEnvironment, GitSvnCredentials } from './askpass';
+import { isRebaseConflictError } from './conflictDetection';
 import { GIT_SVN_CONTEXT_KEY, isGitSvnRepository } from './gitSvn';
 import { ProcessCommandError, ProcessCommandRunner } from './processRunner';
 import type { GitSvnCommand, ProcessCommandRunOptions, ProcessExecutionResult } from './processRunner';
@@ -225,6 +226,11 @@ class GitSvnController implements vscode.Disposable {
       }
     }
 
+    if (command === REBASE_COMMAND && isRebaseConflictError(lastError)) {
+      await this.showRebaseConflictMessage();
+      return;
+    }
+
     await this.showCommandError(lastError, command);
   }
 
@@ -274,6 +280,18 @@ class GitSvnController implements vscode.Disposable {
     }
 
     return { username, password };
+  }
+
+  private async showRebaseConflictMessage(): Promise<void> {
+    const abort = 'Abort Rebase';
+    const result = await vscode.window.showInformationMessage(
+      'Git SVN: Conflicts detected during rebase. Resolve conflicts and continue the rebase.',
+      abort
+    );
+
+    if (result === abort) {
+      await vscode.commands.executeCommand('git.rebaseAbort');
+    }
   }
 
   private async showCommandError(error: unknown, command: GitSvnCommand): Promise<void> {
