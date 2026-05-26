@@ -202,9 +202,11 @@ class GitSvnController implements vscode.Disposable {
 
     while (true) {
       try {
-        await this.runGitSvnCommandAttempt(repository, command, credentials, {
-          logFailureOutput: credentials !== undefined
-        });
+        await vscode.window.withProgress({ location: vscode.ProgressLocation.SourceControl }, () =>
+          this.runGitSvnCommandAttempt(repository, command, credentials, {
+            logFailureOutput: credentials !== undefined
+          })
+        );
         return;
       } catch (error) {
         lastError = error;
