@@ -2,7 +2,7 @@
   "name": "git-svn-vsix",
   "displayName": "Git SVN Buttons",
   "description": "Adds git-svn Source Control buttons to VS Code's built-in Git extension.",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "taroxd",
   "license": "MIT",
   "repository": {
